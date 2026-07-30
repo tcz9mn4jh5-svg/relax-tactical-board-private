@@ -1,0 +1,19 @@
+{
+  "name": "ReLax Board DEV Tactical Board",
+  "short_name": "ReLax Board",
+  "description": "男子ラクロス専用のオフライン戦術ボード",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#071426",
+  "theme_color": "#0f2747",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
