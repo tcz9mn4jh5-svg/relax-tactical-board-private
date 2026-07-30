@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0f2747">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ReLax Board">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./icon.svg">
+  <title>戦術ボード | ReLax Board DEV</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --navy:#071426; --panel:#10233d; --panel2:#172f4e; --line:#36516f;
+      --text:#f8fafc; --muted:#adc0d6; --accent:#38bdf8; --danger:#ef4444;
+      --safe-bottom:env(safe-area-inset-bottom, 0px);
+    }
+    * { box-sizing:border-box; }
+    html, body { margin:0; min-height:100%; background:var(--navy); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif; }
+    body { overscroll-behavior:none; }
+    button, input, select { font:inherit; }
+    button { min-height:44px; border:1px solid var(--line); border-radius:10px; background:var(--panel2); color:var(--text); font-weight:750; padding:8px 11px; cursor:pointer; }
+    button:active { transform:scale(.97); }
+    button.active { background:#0369a1; border-color:#7dd3fc; box-shadow:0 0 0 2px rgba(125,211,252,.25) inset; }
+    button.danger { background:#7f1d1d; border-color:#ef4444; }
+    button.compact { min-height:38px; padding:6px 9px; }
+    input, select { min-height:44px; border:1px solid #55708e; border-radius:9px; background:#08192e; color:#fff; padding:8px; }
+    .app { height:100dvh; min-height:680px; display:grid; grid-template-rows:auto 1fr auto; overflow:hidden; }
+    .topbar { display:grid; grid-template-columns:auto minmax(130px,1fr) auto; gap:8px; align-items:center; padding:8px max(8px,env(safe-area-inset-right)) 8px max(8px,env(safe-area-inset-left)); background:#0b1c33; border-bottom:1px solid var(--line); z-index:20; }
+    .brand { font-weight:900; white-space:nowrap; }
+    .play-name { width:100%; min-width:0; }
+    .top-actions { display:flex; gap:6px; }
+    .desktop-only { display:inline-flex; }
+    .workspace { min-height:0; display:grid; grid-template-columns:138px minmax(0,1fr) 170px; }
+    .panel { min-height:0; overflow:auto; background:var(--panel); padding:8px; scrollbar-width:thin; }
+    .panel.left { border-right:1px solid var(--line); }
+    .panel.right { border-left:1px solid var(--line); }
+    .panel-title { color:#bae6fd; font-size:12px; font-weight:900; letter-spacing:.08em; margin:5px 2px 8px; }
+    .palette-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+    .palette-grid button { min-width:0; padding:7px 3px; font-size:13px; }
+    .wide { grid-column:1/-1; }
+    .separator { height:1px; background:var(--line); margin:10px 0; }
+    .tool-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+    .tool-grid button { padding:7px 4px; font-size:13px; }
+    .settings-row { display:flex; gap:6px; margin-top:7px; }
+    .settings-row select { width:50%; min-width:0; font-size:13px; }
+    .selection-actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+    .selection-actions button { font-size:12px; padding:5px; }
+    .board-shell { min-width:0; min-height:0; overflow:hidden; display:flex; flex-direction:column; background:#06111f; }
+    .board-status { min-height:34px; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:5px 10px; font-size:13px; background:#0d2038; border-bottom:1px solid #294562; }
+    #modeLabel { color:#7dd3fc; font-weight:900; }
+    #stageWrap { min-height:0; flex:1; display:flex; align-items:center; justify-content:center; padding:8px; overflow:hidden; }
+    #stage {
+      position:relative; width:min(100%, calc((100dvh - 122px) * 1.82)); aspect-ratio:1.82;
+      max-height:100%; background:#245b3c; border:3px solid #e9f5e9; border-radius:4px;
+      overflow:visible; touch-action:none; user-select:none; -webkit-user-select:none;
+      box-shadow:0 8px 28px rgba(0,0,0,.45);
+    }
+    #stage.half { width:min(100%, calc((100dvh - 122px) * .98)); aspect-ratio:.98; }
+    #courtSvg, #drawingSvg, #itemsLayer { position:absolute; inset:0; width:100%; height:100%; overflow:visible; }
+    #courtSvg { pointer-events:none; }
+    #drawingSvg { touch-action:none; }
+    #itemsLayer { pointer-events:none; }
+    .court-line { fill:none; stroke:#f8fafc; stroke-width:.7; vector-effect:non-scaling-stroke; }
+    .court-soft { fill:none; stroke:#f8fafc; opacity:.86; stroke-width:.45; stroke-dasharray:2 1.2; vector-effect:non-scaling-stroke; }
+    .goal { fill:none; stroke:#fb923c; stroke-width:1.4; vector-effect:non-scaling-stroke; }
+    .draw-path { fill:none; pointer-events:stroke; stroke-linecap:round; stroke-linejoin:round; vector-effect:non-scaling-stroke; cursor:pointer; }
+    .draw-path.selected { filter:drop-shadow(0 0 3px #67e8f9); }
+    .item { position:absolute; transform:translate(-50%,-50%); pointer-events:auto; touch-action:none; user-select:none; -webkit-user-select:none; cursor:grab; }
+    .item.selected { filter:drop-shadow(0 0 5px #fff) drop-shadow(0 0 6px #22d3ee); z-index:999!important; }
+    .player {
+      width:clamp(42px,5.2vw,58px); height:clamp(42px,5.2vw,58px); border-radius:50%;
+      border:3px solid #fff; display:flex; flex-direction:column; align-items:center; justify-content:center;
+      font-weight:900; line-height:1.02; text-shadow:0 1px 2px #000; box-shadow:0 2px 5px rgba(0,0,0,.45);
+    }
+    .player .pos { font-size:clamp(11px,1.35vw,15px); }
+    .player .num { font-size:clamp(10px,1.2vw,14px); max-width:90%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .ball { width:clamp(26px,3vw,34px); height:clamp(26px,3vw,34px); background:#fde047; border:2px solid #713f12; border-radius:50%; box-shadow:0 2px 5px #0008; }
+    .cone { width:0; height:0; border-left:15px solid transparent; border-right:15px solid transparent; border-bottom:30px solid #f97316; filter:drop-shadow(0 2px 2px #0008); }
+    .memo { min-width:56px; max-width:160px; padding:7px 9px; color:#111827; background:#fef08a; border:2px solid #a16207; border-radius:5px; font-size:13px; font-weight:800; white-space:pre-wrap; }
+    .shape-circle { width:62px; height:62px; border:5px solid #fde047; border-radius:50%; }
+    .shape-square { width:64px; height:52px; border:5px solid #fde047; }
+    .extra-goal { width:50px; height:28px; border:4px solid #fb923c; border-bottom:0; border-radius:25px 25px 0 0; }
+    .bottom-mobile { display:none; }
+    dialog { width:min(92vw,480px); max-height:88dvh; overflow:auto; border:1px solid #56718f; border-radius:15px; background:#10233d; color:#fff; padding:18px; box-shadow:0 20px 60px #000a; }
+    dialog::backdrop { background:#020617cc; }
+    dialog h2 { margin:0 0 14px; }
+    .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .form-grid label { display:flex; flex-direction:column; gap:4px; font-size:13px; color:#cbd5e1; }
+    .dialog-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; flex-wrap:wrap; }
+    .saved-list { display:grid; gap:7px; max-height:45dvh; overflow:auto; margin-top:12px; }
+    .saved-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:7px; align-items:center; padding:8px; background:#08192e; border-radius:9px; }
+    .saved-meta { min-width:0; }
+    .saved-name { font-weight:850; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .saved-date { font-size:11px; color:#9fb3c8; }
+    .saved-actions { display:flex; gap:4px; }
+    .saved-actions button { min-height:36px; padding:5px 7px; font-size:12px; }
+    .toast { position:fixed; left:50%; bottom:calc(18px + var(--safe-bottom)); transform:translateX(-50%); z-index:1000; background:#020617e8; border:1px solid #38bdf8; padding:10px 16px; border-radius:99px; font-weight:800; opacity:0; pointer-events:none; transition:.2s; }
+    .toast.show { opacity:1; }
+    .hint { font-size:11px; color:var(--muted); line-height:1.4; }
+    @media (max-width:760px), (orientation:portrait) {
+      .app { min-height:600px; }
+      .topbar { grid-template-columns:auto minmax(80px,1fr) auto; }
+      .brand { font-size:12px; }
+      .top-actions button { min-height:40px; padding:5px 8px; }
+      .desktop-only { display:none; }
+      .workspace { grid-template-columns:1fr; grid-template-rows:1fr; }
+      .panel { display:none; }
+      .board-status { font-size:12px; }
+      #stageWrap { padding:5px 5px 68px; }
+      #stage { width:min(100%, calc((100dvh - 180px) * 1.82)); }
+      #stage.half { width:min(100%, calc((100dvh - 180px) * .98)); }
+      .bottom-mobile {
+        position:fixed; z-index:50; display:grid; grid-template-columns:repeat(6,1fr); gap:4px;
+        left:0; right:0; bottom:0; padding:6px max(6px,env(safe-area-inset-right)) calc(6px + var(--safe-bottom)) max(6px,env(safe-area-inset-left));
+        background:#0b1c33f5; border-top:1px solid #36516f;
+      }
+      .bottom-mobile button { min-height:48px; min-width:0; padding:5px 2px; font-size:11px; }
+      .player { width:46px; height:46px; }
+    }
+    @media (max-height:520px) and (orientation:landscape) {
+      .topbar { padding-top:4px; padding-bottom:4px; }
+      .topbar button, .topbar input { min-height:38px; }
+      .workspace { grid-template-columns:112px minmax(0,1fr) 140px; }
+      .panel { padding:5px; }
+      .panel-title { margin:2px 0 4px; }
+      .palette-grid, .tool-grid, .selection-actions { gap:3px; }
+      .palette-grid button, .tool-grid button, .selection-actions button { min-height:34px; font-size:11px; padding:3px; }
+      .separator { margin:5px 0; }
+      #stageWrap { padding:3px; }
+      #stage { width:min(100%, calc((100dvh - 86px) * 1.82)); }
+      #stage.half { width:min(100%, calc((100dvh - 86px) * .98)); }
+      .bottom-mobile { display:none; }
+      .panel { display:block; }
+    }
+    @media print {
+      @page { size:A4 landscape; margin:10mm; }
+      body { background:#fff; color:#000; }
+      .app { height:auto; display:block; }
+      .topbar,.panel,.board-status,.bottom-mobile,.toast { display:none!important; }
+      .workspace,.board-shell,#stageWrap { display:block; overflow:visible; background:#fff; padding:0; }
+      #stage { width:100%; max-width:none; height:auto; aspect-ratio:1.82; margin:0 auto; box-shadow:none; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+      #stage.half { width:65%; aspect-ratio:.98; }
+      body::before { content:"ReLax Board DEV — " attr(data-print-title); display:block; font-size:18pt; font-weight:800; margin-bottom:5mm; color:#111; }
+      body::after { content:"作成日時: " attr(data-print-created) "　出力日時: " attr(data-print-date); display:block; margin-top:4mm; color:#333; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">ReLax Board</div>
+    <input id="playName" class="play-name" aria-label="プレー名" placeholder="プレー名" value="新しいプレー">
+    <div class="top-actions">
+      <button id="saveBtn">保存</button>
+      <button id="libraryBtn" class="desktop-only">一覧</button>
+      <button id="pdfBtn">PDF</button>
+      <button id="undoBtn" aria-label="Undo">↶</button>
+      <button id="redoBtn" aria-label="Redo">↷</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <aside class="panel left">
+      <div class="panel-title">選手を追加</div>
+      <div class="palette-grid" id="playerPalette">
+        <button data-add-player="AT">AT</button><button data-add-player="MF">MF</button>
+        <button data-add-player="SSDM">SSDM</button><button data-add-player="FO">FO</button>
+        <button data-add-player="LMF">LMF</button><button data-add-player="DF">DF</button>
+        <button data-add-player="G">G</button><button data-add-player="FREE">自由</button>
+      </div>
+      <div class="settings-row">
+        <button id="teamBlue" class="active compact">青</button><button id="teamRed" class="compact">赤</button>
+      </div>
+      <div class="separator"></div>
+      <div class="panel-title">オブジェクト</div>
+      <div class="palette-grid">
+        <button data-add-object="ball">ボール</button><button data-add-object="cone">コーン</button>
+        <button data-add-object="memo">メモ</button><button data-add-object="circle">○ 強調</button>
+        <button data-add-object="square">□ 強調</button><button data-add-object="goal">ゴール</button>
+      </div>
+      <div class="separator"></div>
+      <button id="courtToggle" class="wide">ハーフコートへ</button>
+      <p class="hint">追加した駒は中央に置かれます。移動モードでドラッグしてください。</p>
+    </aside>
+
+    <section class="board-shell">
+      <div class="board-status">
+        <span id="modeLabel">モード: 移動</span>
+        <span id="selectionLabel">未選択</span>
+      </div>
+      <div id="stageWrap">
+        <div id="stage" aria-label="男子ラクロス戦術ボード">
+          <svg id="courtSvg" viewBox="0 0 110 60" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <svg id="drawingSvg" viewBox="0 0 1000 550" preserveAspectRatio="none">
+            <defs>
+              <marker id="arrow-white" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#fff"/></marker>
+              <marker id="arrow-black" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#111827"/></marker>
+              <marker id="arrow-red" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ef4444"/></marker>
+              <marker id="arrow-blue" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2563eb"/></marker>
+              <marker id="arrow-yellow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#fde047"/></marker>
+            </defs>
+            <g id="drawings"></g>
+            <path id="previewPath" class="draw-path" visibility="hidden"></path>
+          </svg>
+          <div id="itemsLayer"></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel right">
+      <div class="panel-title">操作モード</div>
+      <div class="tool-grid" id="tools">
+        <button class="active" data-mode="move">移動</button><button data-mode="arrow">矢印</button>
+        <button data-mode="dashed">点線</button><button data-mode="curve">曲線</button>
+        <button data-mode="pen">ペン</button><button data-mode="eraser">消しゴム</button>
+      </div>
+      <div class="settings-row">
+        <select id="lineColor" aria-label="線の色">
+          <option value="white">白</option><option value="black">黒</option>
+          <option value="red">赤</option><option value="blue">青</option><option value="yellow">黄</option>
+        </select>
+        <select id="lineWidth" aria-label="線の太さ">
+          <option value="3">細</option><option value="6" selected>中</option><option value="10">太</option>
+        </select>
+      </div>
+      <div class="separator"></div>
+      <div class="panel-title">選択中</div>
+      <div class="selection-actions">
+        <button id="editBtn">編集</button><button id="duplicateBtn">複製</button>
+        <button id="frontBtn">前面</button><button id="backBtn">背面</button>
+        <button id="deleteBtn" class="danger wide">選択を削除</button>
+      </div>
+      <div class="separator"></div>
+      <div class="panel-title">リセット</div>
+      <div class="selection-actions">
+        <button id="clearDrawingsBtn">描画消去</button><button id="resetBtn">初期配置</button>
+        <button id="clearAllBtn" class="danger wide">すべて消去</button>
+      </div>
+      <button id="libraryBtn2" class="wide" style="margin-top:9px">保存済みプレー</button>
+    </aside>
+  </main>
+
+  <nav class="bottom-mobile" aria-label="モバイル操作">
+    <button class="active" data-mobile-mode="move">移動</button>
+    <button data-mobile-mode="arrow">矢印</button>
+    <button data-mobile-mode="dashed">点線</button>
+    <button data-mobile-mode="pen">ペン</button>
+    <button id="mobileAddBtn">＋追加</button>
+    <button id="mobileMoreBtn">その他</button>
+  </nav>
+</div>
+
+<dialog id="editDialog">
+  <form method="dialog" id="editForm">
+    <h2>駒を編集</h2>
+    <div class="form-grid">
+      <label>ポジション<input id="editPosition" maxlength="10"></label>
+      <label>背番号<input id="editNumber" maxlength="10"></label>
+      <label class="wide">名前<input id="editName" maxlength="24"></label>
+      <label>チーム<select id="editTeam"><option value="blue">青</option><option value="red">赤</option></select></label>
+      <label>表示色<input id="editColor" type="color"></label>
+    </div>
+    <div class="dialog-actions"><button value="cancel">キャンセル</button><button id="applyEditBtn" value="default">反映</button></div>
+  </form>
+</dialog>
+
+<dialog id="libraryDialog">
+  <h2>端末内のプレー</h2>
+  <div class="dialog-actions" style="justify-content:flex-start;margin-top:0">
+    <button id="saveAsBtn">別名保存</button><button id="newBtn">新規</button>
+  </div>
+  <div id="savedList" class="saved-list"></div>
+  <div class="dialog-actions"><button id="closeLibraryBtn">閉じる</button></div>
+</dialog>
+
+<dialog id="addDialog">
+  <h2>追加・ツール</h2>
+  <div class="palette-grid">
+    <button data-add-player="AT">AT</button><button data-add-player="MF">MF</button>
+    <button data-add-player="SSDM">SSDM</button><button data-add-player="FO">FO</button>
+    <button data-add-player="LMF">LMF</button><button data-add-player="DF">DF</button>
+    <button data-add-player="G">G</button><button data-add-player="FREE">自由入力</button>
+    <button data-add-object="ball">ボール</button><button data-add-object="cone">コーン</button>
+    <button data-add-object="memo">メモ</button><button data-add-object="circle">強調円</button>
+    <button data-add-object="square">強調四角</button><button data-add-object="goal">ゴール</button>
+  </div>
+  <div class="settings-row"><button id="mobileTeamBlue" class="active">青チーム</button><button id="mobileTeamRed">赤チーム</button></div>
+  <div class="dialog-actions"><button id="closeAddBtn">閉じる</button></div>
+</dialog>
+
+<dialog id="moreDialog">
+  <h2>その他の操作</h2>
+  <div class="palette-grid">
+    <button data-dialog-mode="curve">曲線</button><button data-dialog-mode="eraser">消しゴム</button>
+    <button id="mobileEditBtn">選択を編集</button><button id="mobileDuplicateBtn">選択を複製</button>
+    <button id="mobileDeleteBtn" class="danger">選択を削除</button><button id="mobileCourtBtn">コート切替</button>
+    <button id="mobileLibraryBtn">保存一覧</button><button id="mobileClearDrawingsBtn">描画消去</button>
+    <button id="mobileResetBtn">初期配置</button><button id="mobileClearAllBtn" class="danger">すべて消去</button>
+  </div>
+  <div class="dialog-actions"><button id="closeMoreBtn">閉じる</button></div>
+</dialog>
+
+<div id="toast" class="toast" role="status"></div>
+
+<script>
+(() => {
+  "use strict";
+  const STORAGE_KEY = "relax_tactical_plays_v1";
+  const AUTOSAVE_KEY = "relax_tactical_autosave_v1";
+  const COLORS = {blue:"#1677ff", red:"#e53935", white:"#ffffff", black:"#111827", yellow:"#fde047"};
+  const $ = (id) => document.getElementById(id);
+  const stage = $("stage"), itemsLayer = $("itemsLayer"), drawingsGroup = $("drawings");
+  const previewPath = $("previewPath"), courtSvg = $("courtSvg");
+  let mode = "move", addTeam = "blue", selected = null, pointer = null, zCounter = 30;
+  let history = [], historyIndex = -1, currentSaveId = null, lastTap = {id:null,time:0};
+  let state = createInitialState();
+  let autosaveTimer = null;
+
+  function uid(prefix="id") {
+    return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;
+  }
+  function player(team, position, number, x, y) {
+    return {id:uid("p"), type:"player", team, position, number:String(number), name:"", color:COLORS[team], x, y, z:zCounter++};
+  }
+  function createInitialState() {
+    zCounter = 30;
+    const items = [];
+    const blue = [
+      ["G",1,.08,.5],["DF",2,.19,.28],["DF",3,.19,.5],["DF",4,.19,.72],
+      ["MF",5,.39,.28],["MF",6,.39,.5],["MF",7,.39,.72],
+      ["AT",8,.66,.28],["AT",9,.69,.5],["AT",10,.66,.72]
+    ];
+    const red = [
+      ["G",1,.92,.5],["DF",2,.81,.28],["DF",3,.81,.5],["DF",4,.81,.72],
+      ["MF",5,.61,.22],["MF",6,.61,.5],["MF",7,.61,.78],
+      ["AT",8,.34,.28],["AT",9,.31,.5],["AT",10,.34,.72]
+    ];
+    blue.forEach(([p,n,x,y]) => items.push(player("blue",p,n,x,y)));
+    red.forEach(([p,n,x,y]) => items.push(player("red",p,n,x,y)));
+    items.push({id:uid("ball"),type:"ball",x:.5,y:.5,z:zCounter++});
+    return {version:1,court:"full",items,drawings:[],createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+  }
+  function deepClone(value) { return JSON.parse(JSON.stringify(value)); }
+  function snapshot(push=true) {
+    state.updatedAt = new Date().toISOString();
+    if (push) {
+      history = history.slice(0, historyIndex + 1);
+      history.push(deepClone(state));
+      if (history.length > 50) history.shift();
+      historyIndex = history.length - 1;
+    }
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(() => {
+      try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({state,playName:$("playName").value,currentSaveId})); } catch (_) {}
+    }, 200);
+    updateButtons();
+  }
+  function restoreHistory(index) {
+    if (index < 0 || index >= history.length) return;
+    historyIndex = index; state = deepClone(history[index]); selected = null; render();
+  }
+  function updateButtons() {
+    $("undoBtn").disabled = historyIndex <= 0;
+    $("redoBtn").disabled = historyIndex >= history.length - 1;
+  }
+  function toast(message) {
+    const el=$("toast"); el.textContent=message; el.classList.add("show");
+    setTimeout(() => el.classList.remove("show"), 1500);
+  }
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+  function setMode(next) {
+    mode=next; selected=null;
+    document.querySelectorAll("[data-mode],[data-mobile-mode],[data-dialog-mode]").forEach(b => {
+      b.classList.toggle("active", (b.dataset.mode || b.dataset.mobileMode || b.dataset.dialogMode) === next);
+    });
+    const names={move:"移動",arrow:"実線矢印",dashed:"点線矢印",curve:"曲線矢印",pen:"フリーハンド",eraser:"消しゴム"};
+    $("modeLabel").textContent=`モード: ${names[next]}`;
+    render();
+  }
+  function select(kind,id) {
+    selected = id ? {kind,id} : null;
+    render();
+  }
+  function selectedObject() {
+    if (!selected) return null;
+    return selected.kind === "item" ? state.items.find(x=>x.id===selected.id) : state.drawings.find(x=>x.id===selected.id);
+  }
+  function courtMarkup() {
+    if (state.court === "half") {
+      courtSvg.setAttribute("viewBox","0 0 60 60");
+      return `
+        <rect class="court-line" x="1" y="1" width="58" height="58"/>
+        <line class="court-line" x1="1" y1="50" x2="59" y2="50"/>
+        <line class="court-soft" x1="1" y1="40" x2="59" y2="40"/>
+        <circle class="court-line" cx="30" cy="49" r="7"/>
+        <line class="court-line" x1="25" y1="50" x2="35" y2="50"/>
+        <path class="goal" d="M25 51 Q30 57 35 51"/>
+        <line class="court-soft" x1="12" y1="18" x2="48" y2="18"/>
+        <path class="court-soft" d="M1 12 H15 M45 12 H59"/>
+      `;
+    }
+    courtSvg.setAttribute("viewBox","0 0 110 60");
+    return `
+      <rect class="court-line" x="1" y="1" width="108" height="58"/>
+      <line class="court-line" x1="55" y1="1" x2="55" y2="59"/>
+      <path class="court-line" d="M52.5 27.5 L57.5 32.5 M57.5 27.5 L52.5 32.5"/>
+      <line class="court-line" x1="55" y1="8" x2="55" y2="20"/>
+      <line class="court-line" x1="55" y1="40" x2="55" y2="52"/>
+      <line class="court-soft" x1="22" y1="1" x2="22" y2="59"/>
+      <line class="court-soft" x1="88" y1="1" x2="88" y2="59"/>
+      <line class="court-line" x1="10" y1="25" x2="10" y2="35"/>
+      <line class="court-line" x1="100" y1="25" x2="100" y2="35"/>
+      <circle class="court-line" cx="10" cy="30" r="6"/>
+      <circle class="court-line" cx="100" cy="30" r="6"/>
+      <path class="goal" d="M10 26 Q4 30 10 34"/>
+      <path class="goal" d="M100 26 Q106 30 100 34"/>
+      <line class="court-soft" x1="18" y1="10" x2="18" y2="50"/>
+      <line class="court-soft" x1="92" y1="10" x2="92" y2="50"/>
+    `;
+  }
+  function render() {
+    courtSvg.innerHTML = courtMarkup();
+    stage.classList.toggle("half", state.court==="half");
+    $("courtToggle").textContent = state.court==="full" ? "ハーフコートへ" : "フルコートへ";
+    itemsLayer.innerHTML = state.items.map(item => itemHtml(item)).join("");
+    renderDrawings();
+    document.querySelectorAll(".item").forEach(el => {
+      el.addEventListener("pointerdown", itemPointerDown);
+      el.addEventListener("dblclick", () => { select("item",el.dataset.id); openEdit(); });
+    });
+    const obj=selectedObject();
+    $("selectionLabel").textContent = obj ? (obj.type==="player" ? `${obj.position} ${obj.number||obj.name||""}` : obj.type==="drawing" ? "描画を選択" : obj.type) : "未選択";
+    updateButtons();
+  }
+  function itemHtml(item) {
+    const selectedClass=selected?.kind==="item"&&selected.id===item.id?" selected":"";
+    const style=`left:${item.x*100}%;top:${item.y*100}%;z-index:${item.z||1}`;
+    if (item.type==="player") {
+      const label=item.number||item.name||"";
+      return `<div class="item player${selectedClass}" data-id="${item.id}" style="${style};background:${item.color||COLORS[item.team]}"><span class="pos">${escapeHtml(item.position)}</span><span class="num">${escapeHtml(label)}</span></div>`;
+    }
+    if (item.type==="ball") return `<div class="item ball${selectedClass}" data-id="${item.id}" style="${style}"></div>`;
+    if (item.type==="cone") return `<div class="item cone${selectedClass}" data-id="${item.id}" style="${style}"></div>`;
+    if (item.type==="memo") return `<div class="item memo${selectedClass}" data-id="${item.id}" style="${style}">${escapeHtml(item.text||"メモ")}</div>`;
+    if (item.type==="circle") return `<div class="item shape-circle${selectedClass}" data-id="${item.id}" style="${style}"></div>`;
+    if (item.type==="square") return `<div class="item shape-square${selectedClass}" data-id="${item.id}" style="${style}"></div>`;
+    if (item.type==="goal") return `<div class="item extra-goal${selectedClass}" data-id="${item.id}" style="${style}"></div>`;
+    return "";
+  }
+  function drawingPath(d) {
+    if (d.kind==="pen") return d.points.map((p,i)=>`${i?"L":"M"} ${p.x} ${p.y}`).join(" ");
+    if (d.kind==="curve") {
+      const mx=(d.start.x+d.end.x)/2, my=(d.start.y+d.end.y)/2;
+      const dx=d.end.x-d.start.x, dy=d.end.y-d.start.y;
+      return `M ${d.start.x} ${d.start.y} Q ${mx-dy*.28} ${my+dx*.28} ${d.end.x} ${d.end.y}`;
+    }
+    return `M ${d.start.x} ${d.start.y} L ${d.end.x} ${d.end.y}`;
+  }
+  function renderDrawings() {
+    drawingsGroup.innerHTML=state.drawings.map(d => {
+      const selectedClass=selected?.kind==="drawing"&&selected.id===d.id?" selected":"";
+      const marker=d.kind==="pen"?"":`marker-end="url(#arrow-${d.color})"`;
+      const dash=d.kind==="dashed"?'stroke-dasharray="14 10"':"";
+      return `<path class="draw-path${selectedClass}" data-id="${d.id}" d="${drawingPath(d)}" stroke="${COLORS[d.color]}" stroke-width="${d.width}" ${dash} ${marker}/>`;
+    }).join("");
+    document.querySelectorAll(".draw-path[data-id]").forEach(el => {
+      el.addEventListener("pointerdown", e => {
+        e.stopPropagation();
+        if (mode==="eraser") { removeDrawing(el.dataset.id); }
+        else if (mode==="move") select("drawing",el.dataset.id);
+      });
+    });
+  }
+  function pointFromEvent(e) {
+    const r=stage.getBoundingClientRect();
+    return {x:Math.max(-.12,Math.min(1.12,(e.clientX-r.left)/r.width)),y:Math.max(-.12,Math.min(1.12,(e.clientY-r.top)/r.height))};
+  }
+  function svgPoint(e) {
+    const p=pointFromEvent(e); return {x:p.x*1000,y:p.y*550};
+  }
+  function itemPointerDown(e) {
+    e.preventDefault(); e.stopPropagation();
+    const id=e.currentTarget.dataset.id;
+    if (mode==="eraser") { deleteItem(id); return; }
+    if (mode!=="move") return;
+    const now=Date.now();
+    if (lastTap.id===id && now-lastTap.time<330) { select("item",id); openEdit(); lastTap={id:null,time:0}; return; }
+    lastTap={id,time:now};
+    const item=state.items.find(x=>x.id===id); if (!item) return;
+    select("item",id);
+    const start=pointFromEvent(e), origin={x:item.x,y:item.y};
+    pointer={type:"move",id,pointerId:e.pointerId,start,origin,moved:false};
+    stage.setPointerCapture?.(e.pointerId);
+  }
+  function stagePointerDown(e) {
+    if (e.target.closest?.(".item") || e.target.closest?.(".draw-path[data-id]")) return;
+    e.preventDefault();
+    if (mode==="move") { select(null,null); return; }
+    if (mode==="eraser") return;
+    const start=svgPoint(e);
+    pointer={type:"draw",pointerId:e.pointerId,start,points:[start]};
+    previewPath.setAttribute("visibility","visible");
+    previewPath.setAttribute("stroke",COLORS[$("lineColor").value]);
+    previewPath.setAttribute("stroke-width",$("lineWidth").value);
+    previewPath.setAttribute("stroke-dasharray",mode==="dashed"?"14 10":"");
+    previewPath.setAttribute("marker-end",mode==="pen"?"":`url(#arrow-${$("lineColor").value})`);
+    stage.setPointerCapture?.(e.pointerId);
+  }
+  function pointerMove(e) {
+    if (!pointer || pointer.pointerId!==e.pointerId) return;
+    e.preventDefault();
+    if (pointer.type==="move") {
+      const item=state.items.find(x=>x.id===pointer.id); if(!item)return;
+      const p=pointFromEvent(e);
+      item.x=Math.max(-.1,Math.min(1.1,pointer.origin.x+p.x-pointer.start.x));
+      item.y=Math.max(-.1,Math.min(1.1,pointer.origin.y+p.y-pointer.start.y));
+      pointer.moved=true; render();
+    } else {
+      const p=svgPoint(e);
+      if (mode==="pen") pointer.points.push(p);
+      const temp={kind:mode,start:pointer.start,end:p,points:pointer.points};
+      previewPath.setAttribute("d",drawingPath(temp));
+    }
+  }
+  function pointerUp(e) {
+    if (!pointer || pointer.pointerId!==e.pointerId) return;
+    if (pointer.type==="move") {
+      if(pointer.moved) snapshot();
+    } else {
+      const end=svgPoint(e);
+      const distance=Math.hypot(end.x-pointer.start.x,end.y-pointer.start.y);
+      if(distance>8) {
+        state.drawings.push({id:uid("d"),type:"drawing",kind:mode,color:$("lineColor").value,width:Number($("lineWidth").value),start:pointer.start,end,points:pointer.points});
+        snapshot();
+      }
+      previewPath.setAttribute("visibility","hidden");
+    }
+    pointer=null;
+  }
+  function addPlayer(position) {
+    if(position==="FREE") {
+      const value=prompt("駒に表示する文字（例: IN / RIDE / COACH）","IN");
+      if(value===null)return; position=value.trim()||"FREE";
+    }
+    const item=player(addTeam,position,"",.5,.5);
+    state.items.push(item); snapshot(); select("item",item.id); closeDialogs(); toast(`${position}を追加しました`);
+  }
+  function addObject(type) {
+    const item={id:uid(type),type,x:.5,y:.5,z:zCounter++};
+    if(type==="memo") {
+      const text=prompt("メモを入力してください","メモ");
+      if(text===null)return; item.text=text||"メモ";
+    }
+    state.items.push(item); snapshot(); select("item",item.id); closeDialogs(); toast("追加しました");
+  }
+  function deleteItem(id) {
+    const before=state.items.length; state.items=state.items.filter(x=>x.id!==id);
+    if(state.items.length!==before) { selected=null; snapshot(); render(); }
+  }
+  function removeDrawing(id) {
+    const before=state.drawings.length; state.drawings=state.drawings.filter(x=>x.id!==id);
+    if(state.drawings.length!==before) { selected=null; snapshot(); render(); }
+  }
+  function deleteSelected() {
+    if(!selected){toast("駒か線を選択してください");return;}
+    selected.kind==="item"?deleteItem(selected.id):removeDrawing(selected.id);
+  }
+  function duplicateSelected() {
+    const obj=selectedObject(); if(!obj){toast("駒を選択してください");return;}
+    if(selected.kind==="drawing") {
+      const copy=deepClone(obj); copy.id=uid("d");
+      if(copy.start){copy.start.x+=20;copy.start.y+=20;copy.end.x+=20;copy.end.y+=20;}
+      if(copy.points)copy.points.forEach(p=>{p.x+=20;p.y+=20});
+      state.drawings.push(copy); snapshot(); select("drawing",copy.id); return;
+    }
+    const copy=deepClone(obj); copy.id=uid(obj.type); copy.x+=.035;copy.y+=.035;copy.z=zCounter++;
+    state.items.push(copy);snapshot();select("item",copy.id);
+  }
+  function layerSelected(front) {
+    if(selected?.kind!=="item"){toast("駒を選択してください");return;}
+    const item=selectedObject(); item.z=front?++zCounter:Math.max(1,Math.min(...state.items.map(x=>x.z||1))-1);
+    snapshot();render();
+  }
+  function openEdit() {
+    const item=selectedObject(); if(!item || selected.kind!=="item"){toast("編集する駒を選択してください");return;}
+    closeDialogs();
+    if(item.type==="memo") {
+      const text=prompt("メモを編集",item.text||""); if(text!==null){item.text=text;snapshot();render();} return;
+    }
+    if(item.type!=="player"){toast("このオブジェクトは移動・複製・削除できます");return;}
+    $("editPosition").value=item.position||"";$("editNumber").value=item.number||"";
+    $("editName").value=item.name||"";$("editTeam").value=item.team||"blue";
+    $("editColor").value=item.color||COLORS[item.team]||COLORS.blue;
+    $("editDialog").showModal();
+  }
+  function applyEdit(e) {
+    e.preventDefault(); const item=selectedObject(); if(!item)return;
+    item.position=$("editPosition").value.trim()||"FREE";
+    item.number=$("editNumber").value.trim(); item.name=$("editName").value.trim();
+    item.team=$("editTeam").value; item.color=$("editColor").value;
+    $("editDialog").close();snapshot();render();
+  }
+  function toggleCourt() {
+    state.court=state.court==="full"?"half":"full";snapshot();render();closeDialogs();
+  }
+  function clearDrawings() {
+    if(!state.drawings.length)return;state.drawings=[];selected=null;snapshot();render();closeDialogs();toast("描画を消去しました");
+  }
+  function resetInitial() {
+    if(!confirm("初期配置へ戻しますか？現在の未保存変更は失われます。"))return;
+    state=createInitialState();selected=null;currentSaveId=null;snapshot();render();closeDialogs();toast("初期配置に戻しました");
+  }
+  function clearAll() {
+    if(!confirm("盤面をすべて消去しますか？この操作はUndoできます。"))return;
+    state.items=[];state.drawings=[];selected=null;snapshot();render();closeDialogs();toast("すべて消去しました");
+  }
+  function getLibrary() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]"); } catch(_){return[];}
+  }
+  function setLibrary(items) {
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(items));
+  }
+  function savePlay(asNew=false,forcedName=null) {
+    let name=(forcedName||$("playName").value).trim()||"名称未設定";
+    const library=getLibrary(), now=new Date().toISOString();
+    if(asNew || !currentSaveId) currentSaveId=uid("play");
+    const existing=library.find(x=>x.id===currentSaveId);
+    const entry={id:currentSaveId,name,createdAt:existing?.createdAt||state.createdAt||now,updatedAt:now,state:deepClone(state)};
+    const index=library.findIndex(x=>x.id===currentSaveId);
+    if(index>=0)library[index]=entry;else library.unshift(entry);
+    setLibrary(library);$("playName").value=name;snapshot(false);renderLibrary();toast("端末内に保存しました");
+  }
+  function saveAs() {
+    const name=prompt("別名を入力してください",`${$("playName").value} コピー`);
+    if(name!==null)savePlay(true,name);
+  }
+  function loadPlay(id) {
+    const entry=getLibrary().find(x=>x.id===id);if(!entry)return;
+    state=deepClone(entry.state);currentSaveId=id;$("playName").value=entry.name;
+    selected=null;history=[deepClone(state)];historyIndex=0;render();closeDialogs();toast("読み込みました");
+  }
+  function deletePlay(id) {
+    const entry=getLibrary().find(x=>x.id===id);if(!entry)return;
+    if(!confirm(`「${entry.name}」を端末内から削除しますか？`))return;
+    setLibrary(getLibrary().filter(x=>x.id!==id));if(currentSaveId===id)currentSaveId=null;renderLibrary();
+  }
+  function duplicatePlay(id) {
+    const entry=getLibrary().find(x=>x.id===id);if(!entry)return;
+    const copy=deepClone(entry);copy.id=uid("play");copy.name=`${copy.name} コピー`;copy.createdAt=copy.updatedAt=new Date().toISOString();
+    const library=getLibrary();library.unshift(copy);setLibrary(library);renderLibrary();
+  }
+  function renamePlay(id) {
+    const library=getLibrary(),entry=library.find(x=>x.id===id);if(!entry)return;
+    const name=prompt("新しい名前",entry.name);if(name===null||!name.trim())return;
+    entry.name=name.trim();entry.updatedAt=new Date().toISOString();setLibrary(library);
+    if(currentSaveId===id)$("playName").value=entry.name;renderLibrary();
+  }
+  function renderLibrary() {
+    const list=getLibrary().sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
+    $("savedList").innerHTML=list.length?list.map(entry=>`
+      <div class="saved-row">
+        <div class="saved-meta"><div class="saved-name">${escapeHtml(entry.name)}</div><div class="saved-date">${new Date(entry.updatedAt).toLocaleString("ja-JP")}</div></div>
+        <div class="saved-actions">
+          <button data-load="${entry.id}">開く</button><button data-copy="${entry.id}">複製</button>
+          <button data-rename="${entry.id}">改名</button><button class="danger" data-delete-play="${entry.id}">削除</button>
+        </div>
+      </div>`).join(""):'<p class="hint">保存済みプレーはありません。</p>';
+    document.querySelectorAll("[data-load]").forEach(b=>b.onclick=()=>loadPlay(b.dataset.load));
+    document.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>duplicatePlay(b.dataset.copy));
+    document.querySelectorAll("[data-rename]").forEach(b=>b.onclick=()=>renamePlay(b.dataset.rename));
+    document.querySelectorAll("[data-delete-play]").forEach(b=>b.onclick=()=>deletePlay(b.dataset.deletePlay));
+  }
+  function openLibrary(){renderLibrary();closeDialogs();$("libraryDialog").showModal();}
+  function newPlay(){
+    if(!confirm("新しい盤面を作成しますか？未保存変更は失われます。"))return;
+    state=createInitialState();currentSaveId=null;$("playName").value="新しいプレー";
+    history=[deepClone(state)];historyIndex=0;selected=null;render();closeDialogs();
+  }
+  function exportPdf() {
+    document.body.dataset.printTitle=$("playName").value||"名称未設定";
+    document.body.dataset.printCreated=new Date(state.createdAt).toLocaleString("ja-JP");
+    document.body.dataset.printDate=new Date().toLocaleString("ja-JP");
+    toast("印刷画面で「PDFとして保存」または共有を選択してください");
+    setTimeout(()=>window.print(),250);
+  }
+  function closeDialogs(){document.querySelectorAll("dialog[open]").forEach(d=>d.close());}
+  function setTeam(team){
+    addTeam=team;
+    ["teamBlue","mobileTeamBlue"].forEach(id=>$(id)?.classList.toggle("active",team==="blue"));
+    ["teamRed","mobileTeamRed"].forEach(id=>$(id)?.classList.toggle("active",team==="red"));
+  }
+  function bind() {
+    stage.addEventListener("pointerdown",stagePointerDown);
+    stage.addEventListener("pointermove",pointerMove);
+    stage.addEventListener("pointerup",pointerUp);
+    stage.addEventListener("pointercancel",pointerUp);
+    stage.addEventListener("contextmenu",e=>e.preventDefault());
+    document.querySelectorAll("[data-mode]").forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+    document.querySelectorAll("[data-mobile-mode]").forEach(b=>b.onclick=()=>setMode(b.dataset.mobileMode));
+    document.querySelectorAll("[data-dialog-mode]").forEach(b=>b.onclick=()=>{setMode(b.dataset.dialogMode);closeDialogs();});
+    document.querySelectorAll("[data-add-player]").forEach(b=>b.onclick=()=>addPlayer(b.dataset.addPlayer));
+    document.querySelectorAll("[data-add-object]").forEach(b=>b.onclick=()=>addObject(b.dataset.addObject));
+    $("teamBlue").onclick=$("mobileTeamBlue").onclick=()=>setTeam("blue");
+    $("teamRed").onclick=$("mobileTeamRed").onclick=()=>setTeam("red");
+    $("courtToggle").onclick=$("mobileCourtBtn").onclick=toggleCourt;
+    $("undoBtn").onclick=()=>restoreHistory(historyIndex-1);$("redoBtn").onclick=()=>restoreHistory(historyIndex+1);
+    $("editBtn").onclick=$("mobileEditBtn").onclick=openEdit;
+    $("applyEditBtn").onclick=applyEdit;
+    $("duplicateBtn").onclick=$("mobileDuplicateBtn").onclick=duplicateSelected;
+    $("frontBtn").onclick=()=>layerSelected(true);$("backBtn").onclick=()=>layerSelected(false);
+    $("deleteBtn").onclick=$("mobileDeleteBtn").onclick=deleteSelected;
+    $("clearDrawingsBtn").onclick=$("mobileClearDrawingsBtn").onclick=clearDrawings;
+    $("resetBtn").onclick=$("mobileResetBtn").onclick=resetInitial;
+    $("clearAllBtn").onclick=$("mobileClearAllBtn").onclick=clearAll;
+    $("saveBtn").onclick=()=>savePlay(false);$("saveAsBtn").onclick=saveAs;
+    $("libraryBtn").onclick=$("libraryBtn2").onclick=$("mobileLibraryBtn").onclick=openLibrary;
+    $("closeLibraryBtn").onclick=()=>$("libraryDialog").close();$("newBtn").onclick=newPlay;
+    $("pdfBtn").onclick=exportPdf;
+    $("mobileAddBtn").onclick=()=>$("addDialog").showModal();$("closeAddBtn").onclick=()=>$("addDialog").close();
+    $("mobileMoreBtn").onclick=()=>$("moreDialog").showModal();$("closeMoreBtn").onclick=()=>$("moreDialog").close();
+    $("playName").addEventListener("change",()=>snapshot(false));
+    window.addEventListener("keydown",e=>{
+      if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="z"){e.preventDefault();e.shiftKey?restoreHistory(historyIndex+1):restoreHistory(historyIndex-1);}
+      if((e.key==="Delete"||e.key==="Backspace")&&document.activeElement===document.body)deleteSelected();
+    });
+  }
+  function init() {
+    try {
+      const saved=JSON.parse(localStorage.getItem(AUTOSAVE_KEY)||"null");
+      if(saved?.state){state=saved.state;$("playName").value=saved.playName||"新しいプレー";currentSaveId=saved.currentSaveId||null;}
+    } catch(_){}
+    history=[deepClone(state)];historyIndex=0;bind();render();
+    if("serviceWorker" in navigator && location.protocol!=="about:" && location.protocol!=="data:" && !window.frameElement) {
+      navigator.serviceWorker.register("./sw.js").catch(()=>{});
+    }
+  }
+  init();
+})();
+</script>
+</body>
+</html>
