@@ -71,7 +71,8 @@
     .court-line { fill:none; stroke:#f8fafc; stroke-width:.7; vector-effect:non-scaling-stroke; }
     .court-soft { fill:none; stroke:#f8fafc; opacity:.86; stroke-width:.45; stroke-dasharray:2 1.2; vector-effect:non-scaling-stroke; }
     .goal { fill:none; stroke:#fb923c; stroke-width:1.4; vector-effect:non-scaling-stroke; }
-    .draw-path { fill:none; pointer-events:stroke; stroke-linecap:round; stroke-linejoin:round; vector-effect:non-scaling-stroke; cursor:pointer; }
+    .draw-path { fill:none; pointer-events:none; stroke-linecap:round; stroke-linejoin:round; vector-effect:non-scaling-stroke; }
+    .draw-hit { fill:none; stroke:#000; stroke-opacity:.001; pointer-events:stroke; stroke-linecap:round; stroke-linejoin:round; vector-effect:non-scaling-stroke; cursor:pointer; touch-action:none; }
     .draw-path.selected { filter:drop-shadow(0 0 3px #67e8f9); }
     .item { position:absolute; transform:translate(-50%,-50%); pointer-events:auto; touch-action:none; user-select:none; -webkit-user-select:none; cursor:grab; }
     .item.selected { filter:drop-shadow(0 0 5px #fff) drop-shadow(0 0 6px #22d3ee); z-index:999!important; }
@@ -189,7 +190,7 @@
       body { background:#fff; color:#000; }
       .app { height:auto; display:block; }
       .app.is-fullscreen { position:static; width:auto; height:auto; min-height:0; }
-      .topbar,.panel,.board-status,.bottom-mobile,.toast,.fullscreen-exit,.fullscreen-tools-toggle,.fullscreen-tools { display:none!important; }
+      .topbar,.panel,.board-status,.bottom-mobile,.toast,.fullscreen-exit,.fullscreen-tools-toggle,.fullscreen-tools,.draw-hit { display:none!important; }
       .workspace,.board-shell,#stageWrap { display:block; overflow:visible; background:#fff; padding:0; }
       #stage { width:100%!important; max-width:none; height:auto!important; aspect-ratio:1.82; margin:0 auto; box-shadow:none; print-color-adjust:exact; -webkit-print-color-adjust:exact; }
       #stage.half { width:65%!important; aspect-ratio:.98; }
@@ -591,11 +592,13 @@
       const selectedClass=selected?.kind==="drawing"&&selected.id===d.id?" selected":"";
       const marker=d.kind==="pen"?"":`marker-end="url(#arrow-${d.color})"`;
       const dash=d.kind==="dashed"?'stroke-dasharray="14 10"':"";
-      return `<path class="draw-path${selectedClass}" data-id="${d.id}" d="${drawingPath(d)}" stroke="${COLORS[d.color]}" stroke-width="${d.width}" ${dash} ${marker}/>`;
+      const path=drawingPath(d), hitWidth=Math.max(32,Number(d.width||3)+24);
+      return `<path class="draw-path${selectedClass}" data-id="${d.id}" d="${path}" stroke="${COLORS[d.color]}" stroke-width="${d.width}" ${dash} ${marker}/>
+        <path class="draw-hit" data-id="${d.id}" d="${path}" stroke-width="${hitWidth}"/>`;
     }).join("");
-    document.querySelectorAll(".draw-path[data-id]").forEach(el => {
+    document.querySelectorAll(".draw-hit[data-id]").forEach(el => {
       el.addEventListener("pointerdown", e => {
-        e.stopPropagation();
+        e.preventDefault();e.stopPropagation();
         if (mode==="eraser") { removeDrawing(el.dataset.id); }
         else if (mode==="move") select("drawing",el.dataset.id);
       });
@@ -623,7 +626,7 @@
     stage.setPointerCapture?.(e.pointerId);
   }
   function stagePointerDown(e) {
-    if (e.target.closest?.(".item") || e.target.closest?.(".draw-path[data-id]")) return;
+    if (e.target.closest?.(".item") || e.target.closest?.(".draw-hit[data-id]")) return;
     if(fullscreenMenuOpen)closeFullscreenTools();
     e.preventDefault();
     if (mode==="move") { select(null,null); return; }
