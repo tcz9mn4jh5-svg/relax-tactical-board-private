@@ -83,3 +83,6 @@
 - manifestのstart_urlを `./` へ変更し、Service Workerをv8へ更新。セーフエリア、100dvh、visualViewport対応は維持。
 - ブラウザ検証: 新規ハーフ13枚の正確な内訳、余分なボールを含む盤面からの完全初期化、保存後再読込、旧異常配置の修復提案、Undo/Redo、全画面UI/ツール/解除後13枚維持を確認。
 - レスポンシブ検証: 390×844、844×390、1024×1366、1366×1024でページ縦横オーバーフローなし、13枚表示、フィールド比率維持を確認。
+- コミット `e8d6c5e` を独立アプリのmainへ反映。GitHub Pagesのbuild完了後、公開HTMLがローカル公開物と完全一致し、manifestのstart_urlとService Worker v8も反映済みと確認。公開画面から新規ハーフを作成しDMF2を含む13枚を確認。
+- プロジェクト全体をiCloud Driveの新規フォルダへコピー。元フォルダは削除せず保持した。コピー側の`.git`、remote、HEAD、主要HTMLの一致、cleanなGit状態を確認。
+- iCloudコピーの `docs/` をPython静的サーバーで単独起動し、HTTP 200かつ配信HTML一致を確認。プロジェクト容量は約1.4MB。

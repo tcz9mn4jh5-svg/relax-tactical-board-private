@@ -69,5 +69,5 @@
 - [x] Safari/PWA案内、manifest、セーフエリアを確認
 - [x] 自動検証とスマートフォン/iPad縦横のブラウザ確認
 - [x] SETUPとWORKLOGを更新
-- [ ] GitHub Pagesへ反映しオンライン確認
-- [ ] iCloud Driveへ安全なコピーを作成しGit/build/runを検証
+- [x] GitHub Pagesへ反映しオンライン確認
+- [x] iCloud Driveへ安全なコピーを作成しGit/build/runを検証
