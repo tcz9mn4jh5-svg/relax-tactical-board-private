@@ -218,9 +218,10 @@
       <div class="panel-title">選手を追加</div>
       <div class="palette-grid" id="playerPalette">
         <button data-add-player="AT">AT</button><button data-add-player="MF">MF</button>
-        <button data-add-player="DMF">DMF</button><button data-add-player="FO">FO</button>
-        <button data-add-player="LMF">LMF</button><button data-add-player="DF">DF</button>
-        <button data-add-player="G">G</button><button data-add-player="FREE">自由</button>
+        <button data-add-player="DMF">DMF</button><button data-add-player="SDM">SDM</button>
+        <button data-add-player="FO">FO</button><button data-add-player="LMF">LMF</button>
+        <button data-add-player="DF">DF</button><button data-add-player="G">G</button>
+        <button class="wide" data-add-player="FREE">自由</button>
       </div>
       <div class="settings-row">
         <button id="teamBlue" class="active compact">青</button><button id="teamRed" class="compact">赤</button>
@@ -325,7 +326,7 @@
       <label>ポジション<select id="editPositionSelect">
         <option value="AT">AT</option><option value="MF">MF</option><option value="DF">DF</option>
         <option value="G">G</option><option value="FO">FO</option><option value="DMF">DMF</option>
-        <option value="LMF">LMF</option><option value="other">その他</option>
+        <option value="SDM">SDM</option><option value="LMF">LMF</option><option value="other">その他</option>
       </select></label>
       <label id="editPositionOtherLabel" class="wide position-other hidden">その他のポジション<input id="editPositionOther" maxlength="10" autocomplete="off"></label>
       <label>背番号<input id="editNumber" maxlength="10"></label>
@@ -350,9 +351,10 @@
   <h2>追加・ツール</h2>
   <div class="palette-grid">
     <button data-add-player="AT">AT</button><button data-add-player="MF">MF</button>
-    <button data-add-player="DMF">DMF</button><button data-add-player="FO">FO</button>
-    <button data-add-player="LMF">LMF</button><button data-add-player="DF">DF</button>
-    <button data-add-player="G">G</button><button data-add-player="FREE">自由入力</button>
+    <button data-add-player="DMF">DMF</button><button data-add-player="SDM">SDM</button>
+    <button data-add-player="FO">FO</button><button data-add-player="LMF">LMF</button>
+    <button data-add-player="DF">DF</button><button data-add-player="G">G</button>
+    <button class="wide" data-add-player="FREE">自由入力</button>
     <button data-add-object="ball">ボール</button><button data-add-object="cone">コーン</button>
     <button data-add-object="memo">メモ</button><button data-add-object="circle">強調円</button>
     <button data-add-object="square">強調四角</button><button data-add-object="goal">ゴール</button>
@@ -403,7 +405,7 @@
   const STORAGE_KEY = "relax_tactical_plays_v1";
   const AUTOSAVE_KEY = "relax_tactical_autosave_v1";
   const COLORS = {blue:"#1677ff", red:"#e53935", white:"#ffffff", black:"#111827", yellow:"#fde047"};
-  const POSITION_OPTIONS = ["AT","MF","DF","G","FO","DMF","LMF"];
+  const POSITION_OPTIONS = ["AT","MF","DF","G","FO","DMF","SDM","LMF"];
   const DEFAULT_DISPLAY_SETTINGS = {showPosition:true,showNumber:false,showName:false};
   const $ = (id) => document.getElementById(id);
   const stage = $("stage"), itemsLayer = $("itemsLayer"), drawingsGroup = $("drawings");
@@ -421,9 +423,21 @@
   function player(team, position, number="", x, y) {
     return {id:uid("p"), type:"player", team, position, number:String(number ?? ""), name:"", color:COLORS[team], x, y, z:zCounter++};
   }
-  function createInitialState(court="full") {
-    zCounter = 30;
+  function createInitialPlayers(court="full") {
     const items = [];
+    if(court==="half") {
+      const offense = [
+        ["MF",.22,.18],["MF",.5,.18],["MF",.78,.18],
+        ["AT",.27,.42],["AT",.5,.42],["AT",.73,.42]
+      ];
+      const defense = [
+        ["SDM",.39,.35],["SDM",.61,.35],["LMF",.84,.5],
+        ["DF",.3,.64],["DF",.5,.64],["DF",.7,.64],["G",.5,.84]
+      ];
+      offense.forEach(([p,x,y]) => items.push(player("blue",p,"",x,y)));
+      defense.forEach(([p,x,y]) => items.push(player("red",p,"",x,y)));
+      return items;
+    }
     const blue = [
       ["G",.08,.5],["DF",.19,.28],["DF",.19,.5],["DF",.19,.72],
       ["MF",.39,.28],["MF",.39,.5],["MF",.39,.72],
@@ -436,8 +450,14 @@
     ];
     blue.forEach(([p,x,y]) => items.push(player("blue",p,"",x,y)));
     red.forEach(([p,x,y]) => items.push(player("red",p,"",x,y)));
-    items.push({id:uid("ball"),type:"ball",x:.5,y:.5,z:zCounter++});
-    return {version:2,court:court==="half"?"half":"full",items,drawings:[],displaySettings:{...DEFAULT_DISPLAY_SETTINGS},createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+    return items;
+  }
+  function createInitialState(court="full") {
+    zCounter = 30;
+    const normalizedCourt=court==="half"?"half":"full";
+    const items=createInitialPlayers(normalizedCourt);
+    items.push({id:uid("ball"),type:"ball",x:.5,y:normalizedCourt==="half"?.52:.5,z:zCounter++});
+    return {version:2,court:normalizedCourt,items,drawings:[],displaySettings:{...DEFAULT_DISPLAY_SETTINGS},createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
   }
   function deepClone(value) { return JSON.parse(JSON.stringify(value)); }
   function normalizeState(value) {
@@ -827,7 +847,12 @@
     }
   }
   function toggleCourt() {
-    state.court=state.court==="full"?"half":"full";snapshot();render();closeDialogs();
+    const nextCourt=state.court==="full"?"half":"full";
+    const otherItems=state.items.filter(item=>item.type!=="player");
+    state.court=nextCourt;
+    state.items=[...createInitialPlayers(nextCourt),...otherItems];
+    selected=null;snapshot();render();closeDialogs();
+    toast(nextCourt==="half"?"ハーフ専用配置へ切り替えました（Undo可能）":"フル初期配置へ切り替えました（Undo可能）");
   }
   function clearDrawings() {
     if(!state.drawings.length)return;state.drawings=[];selected=null;snapshot();render();closeDialogs();toast("描画を消去しました");
