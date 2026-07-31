@@ -17,4 +17,6 @@
 - 390×844、844×390、1024×1366、1366×1024で確認。スマートフォン横画面の既存最小高さによるスクロールと縦横比崩れを修正。
 - ブラウザ確認: 初期表示、編集、その他ポジション、表示3項目/全OFF、設定再読込、保存/読込、小型駒ドラッグ、全画面メニュー、矢印描画、全画面解除後の座標保持、Undo/Redo、PDF出力準備データ。
 - 静的確認: JavaScript構文、旧version 1データの背番号/名前保持、旧データへの表示設定既定値追加、長い名前の省略。
+- コミット `1bdb833` を独立アプリの `main` へ反映し、GitHub Pagesのビルド完了を確認。公開HTMLとService Worker v4をオンライン取得して新機能を確認。
+- 公開URL: `https://tcz9mn4jh5-svg.github.io/relax-tactical-board-private/`
 - 実機確認として iPhone Safari、ホーム画面追加版PWA、Apple Pencil、オフライン再起動を残す。
