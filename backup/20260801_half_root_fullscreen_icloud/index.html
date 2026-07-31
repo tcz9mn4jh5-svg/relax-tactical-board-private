@@ -120,7 +120,6 @@
     .switch-row input { width:48px; height:28px; min-height:0; accent-color:#0ea5e9; }
     .new-play-options { display:grid; gap:10px; }
     .new-play-options button { min-height:56px; font-size:16px; }
-    .warning-box { padding:11px 12px; border:1px solid #f59e0b; border-radius:10px; background:#422006; color:#fef3c7; line-height:1.55; }
     .fullscreen-exit,.fullscreen-tools-toggle,.fullscreen-tools { display:none; }
     .app.is-fullscreen {
       position:fixed; inset:0; z-index:900; width:100vw; height:var(--app-height);
@@ -398,26 +397,6 @@
   <div class="dialog-actions"><button id="closeDisplayBtn">閉じる</button></div>
 </dialog>
 
-<dialog id="fieldChangeDialog">
-  <h2>フィールドを切り替える</h2>
-  <p id="fieldChangeMessage" class="warning-box"></p>
-  <p class="hint">保存済みプレーは、保存ボタンを押すまで上書きされません。</p>
-  <div class="dialog-actions"><button id="cancelFieldChangeBtn">キャンセル</button><button id="confirmFieldChangeBtn" class="danger">13枚で作り直す</button></div>
-</dialog>
-
-<dialog id="halfRepairDialog">
-  <h2>ハーフ配置を確認</h2>
-  <p class="warning-box">この保存データには旧版のフル配置と思われる駒が含まれています。描画と追加オブジェクトを残し、選手だけをハーフ初期配置13枚へ修正できます。</p>
-  <div class="dialog-actions"><button id="keepHalfLayoutBtn">現在の配置を維持</button><button id="repairHalfLayoutBtn">13枚に修正</button></div>
-</dialog>
-
-<dialog id="fullscreenHelpDialog">
-  <h2>Safariで大きく表示する</h2>
-  <p class="hint">この端末ではブラウザ全体の全画面表示が利用できないため、アプリ内全画面で表示しています。</p>
-  <p class="warning-box">Safariのタブを非表示にするには、共有メニューから「ホーム画面に追加」し、追加したReLax Boardを起動してください。</p>
-  <div class="dialog-actions"><button id="closeFullscreenHelpBtn">閉じる</button></div>
-</dialog>
-
 <div id="toast" class="toast" role="status"></div>
 
 <script>
@@ -436,7 +415,7 @@
   let history = [], historyIndex = -1, currentSaveId = null, lastTap = {id:null,time:0};
   let state = createInitialState();
   let autosaveTimer = null;
-  let fullscreenMenuOpen = false, nativeFullscreenActive = false, pendingFieldMode = null;
+  let fullscreenMenuOpen = false, nativeFullscreenActive = false;
 
   function uid(prefix="id") {
     return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;
@@ -444,22 +423,21 @@
   function player(team, position, number="", x, y) {
     return {id:uid("p"), type:"player", team, position, number:String(number ?? ""), name:"", color:COLORS[team], x, y, z:zCounter++};
   }
-  function createHalfFieldPlayers() {
+  function createInitialPlayers(court="full") {
     const items = [];
-    const offense = [
-      ["MF",.22,.18],["MF",.5,.18],["MF",.78,.18],
-      ["AT",.27,.42],["AT",.5,.42],["AT",.73,.42]
-    ];
-    const defense = [
-      ["DMF",.39,.35],["DMF",.61,.35],["LMF",.84,.5],
-      ["DF",.3,.64],["DF",.5,.64],["DF",.7,.64],["G",.5,.84]
-    ];
-    offense.forEach(([p,x,y]) => items.push(player("blue",p,"",x,y)));
-    defense.forEach(([p,x,y]) => items.push(player("red",p,"",x,y)));
-    return items;
-  }
-  function createFullFieldPlayers() {
-    const items = [];
+    if(court==="half") {
+      const offense = [
+        ["MF",.22,.18],["MF",.5,.18],["MF",.78,.18],
+        ["AT",.27,.42],["AT",.5,.42],["AT",.73,.42]
+      ];
+      const defense = [
+        ["SDM",.39,.35],["SDM",.61,.35],["LMF",.84,.5],
+        ["DF",.3,.64],["DF",.5,.64],["DF",.7,.64],["G",.5,.84]
+      ];
+      offense.forEach(([p,x,y]) => items.push(player("blue",p,"",x,y)));
+      defense.forEach(([p,x,y]) => items.push(player("red",p,"",x,y)));
+      return items;
+    }
     const blue = [
       ["G",.08,.5],["DF",.19,.28],["DF",.19,.5],["DF",.19,.72],
       ["MF",.39,.28],["MF",.39,.5],["MF",.39,.72],
@@ -474,33 +452,19 @@
     red.forEach(([p,x,y]) => items.push(player("red",p,"",x,y)));
     return items;
   }
-  function createInitialPlayers(court="full") {
-    const items=court==="half"?createHalfFieldPlayers():createFullFieldPlayers();
-    if(court==="half")validateHalfFieldPlayers(items,true);
-    return items;
-  }
-  function validateHalfFieldPlayers(items,log=false) {
-    const players=items.filter(item=>item.type==="player");
-    const counts=players.reduce((all,item)=>{const key=`${item.team}:${item.position}`;all[key]=(all[key]||0)+1;return all;},{});
-    const expected={"blue:AT":3,"blue:MF":3,"red:DF":3,"red:DMF":2,"red:LMF":1,"red:G":1};
-    const valid=players.length===13 && Object.keys(counts).length===Object.keys(expected).length && Object.entries(expected).every(([key,count])=>counts[key]===count);
-    if(log&&!valid)console.error("ハーフ初期配置が13枚の指定内訳と一致しません",{counts,players});
-    return {valid,count:players.length,counts};
-  }
   function createInitialState(court="full") {
     zCounter = 30;
     const normalizedCourt=court==="half"?"half":"full";
     const items=createInitialPlayers(normalizedCourt);
     items.push({id:uid("ball"),type:"ball",x:.5,y:normalizedCourt==="half"?.52:.5,z:zCounter++});
-    return {version:3,fieldMode:normalizedCourt,court:normalizedCourt,items,drawings:[],displaySettings:{...DEFAULT_DISPLAY_SETTINGS},createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+    return {version:2,court:normalizedCourt,items,drawings:[],displaySettings:{...DEFAULT_DISPLAY_SETTINGS},createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
   }
   function deepClone(value) { return JSON.parse(JSON.stringify(value)); }
   function normalizeState(value) {
     const next=value && typeof value==="object" ? value : createInitialState();
     next.items=Array.isArray(next.items)?next.items:[];
     next.drawings=Array.isArray(next.drawings)?next.drawings:[];
-    const fieldMode=next.fieldMode==="half"||(!next.fieldMode&&next.court==="half")?"half":"full";
-    next.fieldMode=fieldMode;next.court=fieldMode;
+    next.court=next.court==="half"?"half":"full";
     next.displaySettings={...DEFAULT_DISPLAY_SETTINGS,...(next.displaySettings||{})};
     next.items.forEach(item=>{
       if(item.type!=="player")return;
@@ -509,14 +473,8 @@
       item.number=String(item.number ?? "");
       item.name=String(item.name ?? "");
     });
-    next.version=Math.max(Number(next.version)||1,3);
+    next.version=Math.max(Number(next.version)||1,2);
     return next;
-  }
-  function looksLikeLegacyFullLineup(items) {
-    const players=items.filter(item=>item.type==="player");
-    if(players.length<20)return false;
-    const counts=players.reduce((all,item)=>{all[item.position]=(all[item.position]||0)+1;return all;},{});
-    return counts.AT>=6&&counts.MF>=6&&counts.DF>=6&&counts.G>=2;
   }
   function snapshot(push=true) {
     state.updatedAt = new Date().toISOString();
@@ -531,10 +489,6 @@
       try { localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({state,playName:$("playName").value,currentSaveId})); } catch (_) {}
     }, 200);
     updateButtons();
-  }
-  function persistAutosaveNow() {
-    clearTimeout(autosaveTimer);
-    try { localStorage.setItem(AUTOSAVE_KEY,JSON.stringify({state,playName:$("playName").value,currentSaveId})); } catch (_) {}
   }
   function restoreHistory(index) {
     if (index < 0 || index >= history.length) return;
@@ -869,58 +823,36 @@
   }
   async function enterFullscreen() {
     closeDialogs();setFullscreenUi(true);
-    const root=document.documentElement;
     try {
-      if(!getFullscreenElement()&&root.requestFullscreen)await root.requestFullscreen({navigationUI:"hide"});
-      else if(!getFullscreenElement()&&root.webkitRequestFullscreen)await Promise.resolve(root.webkitRequestFullscreen());
-      else if(!getFullscreenElement())showFullscreenHelp();
-      nativeFullscreenActive=Boolean(getFullscreenElement());
-      if(!nativeFullscreenActive)showFullscreenHelp();
-    } catch(_){nativeFullscreenActive=false;showFullscreenHelp();}
-  }
-  function getFullscreenElement(){return document.fullscreenElement||document.webkitFullscreenElement||null;}
-  function isStandalone(){return window.matchMedia?.("(display-mode: standalone)").matches||window.navigator.standalone===true;}
-  function showFullscreenHelp(){
-    let seen=false;
-    try{seen=Boolean(sessionStorage.getItem("relax_fullscreen_help_seen"));}catch(_){}
-    if(isStandalone()||seen)return;
-    try{sessionStorage.setItem("relax_fullscreen_help_seen","1");}catch(_){}
-    if(!$("fullscreenHelpDialog").open)$("fullscreenHelpDialog").showModal();
+      if(document.documentElement.requestFullscreen && !document.fullscreenElement){
+        await document.documentElement.requestFullscreen({navigationUI:"hide"});
+        nativeFullscreenActive=Boolean(document.fullscreenElement);
+      }
+    } catch(_){nativeFullscreenActive=false;}
   }
   async function exitFullscreenMode() {
     setFullscreenUi(false);
-    if(getFullscreenElement()){
-      try{
-        if(document.exitFullscreen)await document.exitFullscreen();
-        else if(document.webkitExitFullscreen)await Promise.resolve(document.webkitExitFullscreen());
-      }catch(_){}
+    if(document.fullscreenElement){
+      try{await document.exitFullscreen();}catch(_){}
     }
     nativeFullscreenActive=false;
   }
   function handleFullscreenChange() {
-    if(getFullscreenElement()){
+    if(document.fullscreenElement){
       nativeFullscreenActive=true;setFullscreenUi(true);
-    } else if(nativeFullscreenActive){nativeFullscreenActive=false;setFullscreenUi(false);}
+    } else {
+      nativeFullscreenActive=false;
+      // ネイティブ全画面が利用できない／解除された場合も疑似全画面を維持する。
+      // アプリ側の「終了」ボタンでのみ確実に通常表示へ戻す。
+    }
   }
   function toggleCourt() {
     const nextCourt=state.court==="full"?"half":"full";
-    closeDialogs();pendingFieldMode=nextCourt;
-    $("fieldChangeMessage").textContent=nextCourt==="half"?"ハーフフィールドへ変更すると、現在の駒・線・矢印・ペン描画を消去し、指定の13枚で作り直します。":"フルフィールドへ変更すると、現在の駒・線・矢印・ペン描画を消去し、フル初期配置で作り直します。";
-    $("confirmFieldChangeBtn").textContent=nextCourt==="half"?"13枚で作り直す":"フル配置で作り直す";
-    $("fieldChangeDialog").showModal();
-  }
-  function confirmFieldModeChange(){
-    if(!pendingFieldMode)return;
-    const next=pendingFieldMode,settings={...DEFAULT_DISPLAY_SETTINGS,...state.displaySettings},createdAt=state.createdAt;
-    state=createInitialState(next);state.displaySettings=settings;state.createdAt=createdAt;
-    pendingFieldMode=null;selected=null;pointer=null;previewPath.setAttribute("visibility","hidden");
-    snapshot();render();closeDialogs();
-    toast(next==="half"?"ハーフ初期配置13枚で作り直しました（Undo可能）":"フル初期配置で作り直しました（Undo可能）");
-  }
-  function repairLegacyHalfLayout(){
     const otherItems=state.items.filter(item=>item.type!=="player");
-    state.items=[...createHalfFieldPlayers(),...otherItems];state.fieldMode=state.court="half";
-    selected=null;pointer=null;snapshot();render();$("halfRepairDialog").close();toast("選手をハーフ初期配置13枚へ修正しました");
+    state.court=nextCourt;
+    state.items=[...createInitialPlayers(nextCourt),...otherItems];
+    selected=null;snapshot();render();closeDialogs();
+    toast(nextCourt==="half"?"ハーフ専用配置へ切り替えました（Undo可能）":"フル初期配置へ切り替えました（Undo可能）");
   }
   function clearDrawings() {
     if(!state.drawings.length)return;state.drawings=[];selected=null;snapshot();render();closeDialogs();toast("描画を消去しました");
@@ -956,9 +888,7 @@
   function loadPlay(id) {
     const entry=getLibrary().find(x=>x.id===id);if(!entry)return;
     state=normalizeState(deepClone(entry.state));currentSaveId=id;$("playName").value=entry.name;
-    const needsHalfRepair=state.fieldMode==="half"&&looksLikeLegacyFullLineup(state.items);
     selected=null;history=[deepClone(state)];historyIndex=0;render();closeDialogs();toast("読み込みました");
-    if(needsHalfRepair)$("halfRepairDialog").showModal();
   }
   function deletePlay(id) {
     const entry=getLibrary().find(x=>x.id===id);if(!entry)return;
@@ -997,8 +927,8 @@
   }
   function newPlay(court){
     state=createInitialState(court);currentSaveId=null;$("playName").value="新しいプレー";
-    history=[deepClone(state)];historyIndex=0;selected=null;pointer=null;render();closeDialogs();
-    persistAutosaveNow();updateButtons();toast(court==="half"?"ハーフフィールド13枚を作成しました":"フルフィールドを作成しました");
+    history=[deepClone(state)];historyIndex=0;selected=null;render();closeDialogs();
+    snapshot(false);toast(court==="half"?"ハーフフィールドを作成しました":"フルフィールドを作成しました");
   }
   function exportPdf() {
     document.body.dataset.printTitle=$("playName").value||"名称未設定";
@@ -1044,11 +974,6 @@
     $("closeLibraryBtn").onclick=()=>$("libraryDialog").close();$("newBtn").onclick=openNewPlayDialog;
     $("newFullBtn").onclick=()=>newPlay("full");$("newHalfBtn").onclick=()=>newPlay("half");
     $("cancelNewPlayBtn").onclick=()=>$("newPlayDialog").close();
-    $("cancelFieldChangeBtn").onclick=()=>{pendingFieldMode=null;$("fieldChangeDialog").close();};
-    $("confirmFieldChangeBtn").onclick=confirmFieldModeChange;
-    $("keepHalfLayoutBtn").onclick=()=>$("halfRepairDialog").close();
-    $("repairHalfLayoutBtn").onclick=repairLegacyHalfLayout;
-    $("closeFullscreenHelpBtn").onclick=()=>$("fullscreenHelpDialog").close();
     $("pdfBtn").onclick=exportPdf;
     $("mobileAddBtn").onclick=()=>$("addDialog").showModal();$("closeAddBtn").onclick=()=>$("addDialog").close();
     $("mobileMoreBtn").onclick=()=>$("moreDialog").showModal();$("closeMoreBtn").onclick=()=>$("moreDialog").close();
@@ -1063,7 +988,6 @@
     $("fullscreenAddBtn").onclick=()=>{closeFullscreenTools();$("addDialog").showModal();};
     $("fullscreenMoreBtn").onclick=()=>{closeFullscreenTools();$("moreDialog").showModal();};
     document.addEventListener("fullscreenchange",handleFullscreenChange);
-    document.addEventListener("webkitfullscreenchange",handleFullscreenChange);
     window.addEventListener("resize",setViewportHeight);
     window.addEventListener("orientationchange",()=>setTimeout(setViewportHeight,80));
     window.visualViewport?.addEventListener("resize",setViewportHeight);
@@ -1071,18 +995,15 @@
     window.addEventListener("keydown",e=>{
       if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="z"){e.preventDefault();e.shiftKey?restoreHistory(historyIndex+1):restoreHistory(historyIndex-1);}
       if((e.key==="Delete"||e.key==="Backspace")&&document.activeElement===document.body)deleteSelected();
-      if(e.key==="Escape"&&app.classList.contains("is-fullscreen")&&!getFullscreenElement())exitFullscreenMode();
+      if(e.key==="Escape"&&app.classList.contains("is-fullscreen")&&!document.fullscreenElement)exitFullscreenMode();
     });
   }
-  window.__RELAX_BOARD_TEST__={createInitialState,normalizeState,validateHalfFieldPlayers,looksLikeLegacyFullLineup};
   function init() {
-    let needsStartupHalfRepair=false;
     try {
       const saved=JSON.parse(localStorage.getItem(AUTOSAVE_KEY)||"null");
-      if(saved?.state){state=normalizeState(saved.state);$("playName").value=saved.playName||"新しいプレー";currentSaveId=saved.currentSaveId||null;needsStartupHalfRepair=state.fieldMode==="half"&&looksLikeLegacyFullLineup(state.items);}
+      if(saved?.state){state=normalizeState(saved.state);$("playName").value=saved.playName||"新しいプレー";currentSaveId=saved.currentSaveId||null;}
     } catch(_){}
     state=normalizeState(state);history=[deepClone(state)];historyIndex=0;bind();setViewportHeight();render();
-    if(needsStartupHalfRepair)$("halfRepairDialog").showModal();
     if("serviceWorker" in navigator && location.protocol!=="about:" && location.protocol!=="data:" && !window.frameElement) {
       navigator.serviceWorker.register("./sw.js").catch(()=>{});
     }
