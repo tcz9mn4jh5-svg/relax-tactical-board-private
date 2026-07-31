@@ -117,6 +117,8 @@
     .switch-list { display:grid; gap:9px; margin:10px 0; }
     .switch-row { min-height:50px; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:#08192e; color:#fff; font-weight:750; }
     .switch-row input { width:48px; height:28px; min-height:0; accent-color:#0ea5e9; }
+    .new-play-options { display:grid; gap:10px; }
+    .new-play-options button { min-height:56px; font-size:16px; }
     .fullscreen-exit,.fullscreen-tools-toggle,.fullscreen-tools { display:none; }
     .app.is-fullscreen {
       position:fixed; inset:0; z-index:900; width:100vw; height:var(--app-height);
@@ -134,7 +136,7 @@
     .fullscreen-tools-toggle { left:calc(9px + var(--safe-left)); bottom:calc(9px + var(--safe-bottom)); width:48px; height:48px; border-radius:50%; font-size:20px; }
     .app.is-fullscreen .fullscreen-tools.open {
       display:grid; position:fixed; z-index:925; left:calc(64px + var(--safe-left)); right:calc(8px + var(--safe-right)); bottom:calc(8px + var(--safe-bottom));
-      grid-template-columns:repeat(8,minmax(52px,1fr)); gap:5px; padding:7px; border:1px solid #4f708f; border-radius:13px;
+      grid-template-columns:repeat(9,minmax(48px,1fr)); gap:5px; padding:7px; border:1px solid #4f708f; border-radius:13px;
       background:#071a30eb; box-shadow:0 8px 28px #000a; backdrop-filter:blur(10px);
     }
     .fullscreen-tools button { min-height:42px; min-width:0; padding:5px 4px; font-size:11px; }
@@ -180,7 +182,7 @@
       .panel { display:block; }
     }
     @media (max-width:700px) {
-      .app.is-fullscreen .fullscreen-tools.open { grid-template-columns:repeat(4,1fr); left:calc(58px + var(--safe-left)); }
+      .app.is-fullscreen .fullscreen-tools.open { grid-template-columns:repeat(3,1fr); left:calc(58px + var(--safe-left)); }
     }
     @media print {
       @page { size:A4 landscape; margin:10mm; }
@@ -215,7 +217,7 @@
       <div class="panel-title">選手を追加</div>
       <div class="palette-grid" id="playerPalette">
         <button data-add-player="AT">AT</button><button data-add-player="MF">MF</button>
-        <button data-add-player="SSDM">SSDM</button><button data-add-player="FO">FO</button>
+        <button data-add-player="DMF">DMF</button><button data-add-player="FO">FO</button>
         <button data-add-player="LMF">LMF</button><button data-add-player="DF">DF</button>
         <button data-add-player="G">G</button><button data-add-player="FREE">自由</button>
       </div>
@@ -263,6 +265,7 @@
         <button data-fullscreen-mode="arrow">矢印</button>
         <button data-fullscreen-mode="dashed">点線</button>
         <button data-fullscreen-mode="pen">ペン</button>
+        <button data-fullscreen-mode="eraser">消しゴム</button>
         <button id="fullscreenAddBtn">＋追加</button>
         <button id="fullscreenMoreBtn">その他</button>
         <button id="fullscreenUndoBtn" aria-label="Undo">↶ Undo</button>
@@ -320,7 +323,7 @@
     <div class="form-grid">
       <label>ポジション<select id="editPositionSelect">
         <option value="AT">AT</option><option value="MF">MF</option><option value="DF">DF</option>
-        <option value="G">G</option><option value="FO">FO</option><option value="SSDM">SSDM</option>
+        <option value="G">G</option><option value="FO">FO</option><option value="DMF">DMF</option>
         <option value="LMF">LMF</option><option value="other">その他</option>
       </select></label>
       <label id="editPositionOtherLabel" class="wide position-other hidden">その他のポジション<input id="editPositionOther" maxlength="10" autocomplete="off"></label>
@@ -346,7 +349,7 @@
   <h2>追加・ツール</h2>
   <div class="palette-grid">
     <button data-add-player="AT">AT</button><button data-add-player="MF">MF</button>
-    <button data-add-player="SSDM">SSDM</button><button data-add-player="FO">FO</button>
+    <button data-add-player="DMF">DMF</button><button data-add-player="FO">FO</button>
     <button data-add-player="LMF">LMF</button><button data-add-player="DF">DF</button>
     <button data-add-player="G">G</button><button data-add-player="FREE">自由入力</button>
     <button data-add-object="ball">ボール</button><button data-add-object="cone">コーン</button>
@@ -370,6 +373,16 @@
   <div class="dialog-actions"><button id="closeMoreBtn">閉じる</button></div>
 </dialog>
 
+<dialog id="newPlayDialog">
+  <h2>新しいプレー</h2>
+  <p class="hint">作成するフィールドを選択してください。新しいプレーは背番号・名前が空欄の初期配置で始まります。</p>
+  <div class="new-play-options">
+    <button id="newFullBtn">フルフィールドで作成</button>
+    <button id="newHalfBtn">ハーフフィールドで作成</button>
+  </div>
+  <div class="dialog-actions"><button id="cancelNewPlayBtn">キャンセル</button></div>
+</dialog>
+
 <dialog id="displayDialog">
   <h2>駒の表示設定</h2>
   <p class="hint">設定は全チームの駒とPDF出力へ反映され、プレーと一緒に保存されます。</p>
@@ -389,7 +402,7 @@
   const STORAGE_KEY = "relax_tactical_plays_v1";
   const AUTOSAVE_KEY = "relax_tactical_autosave_v1";
   const COLORS = {blue:"#1677ff", red:"#e53935", white:"#ffffff", black:"#111827", yellow:"#fde047"};
-  const POSITION_OPTIONS = ["AT","MF","DF","G","FO","SSDM","LMF"];
+  const POSITION_OPTIONS = ["AT","MF","DF","G","FO","DMF","LMF"];
   const DEFAULT_DISPLAY_SETTINGS = {showPosition:true,showNumber:false,showName:false};
   const $ = (id) => document.getElementById(id);
   const stage = $("stage"), itemsLayer = $("itemsLayer"), drawingsGroup = $("drawings");
@@ -407,7 +420,7 @@
   function player(team, position, number="", x, y) {
     return {id:uid("p"), type:"player", team, position, number:String(number ?? ""), name:"", color:COLORS[team], x, y, z:zCounter++};
   }
-  function createInitialState() {
+  function createInitialState(court="full") {
     zCounter = 30;
     const items = [];
     const blue = [
@@ -423,7 +436,7 @@
     blue.forEach(([p,x,y]) => items.push(player("blue",p,"",x,y)));
     red.forEach(([p,x,y]) => items.push(player("red",p,"",x,y)));
     items.push({id:uid("ball"),type:"ball",x:.5,y:.5,z:zCounter++});
-    return {version:2,court:"full",items,drawings:[],displaySettings:{...DEFAULT_DISPLAY_SETTINGS},createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
+    return {version:2,court:court==="half"?"half":"full",items,drawings:[],displaySettings:{...DEFAULT_DISPLAY_SETTINGS},createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()};
   }
   function deepClone(value) { return JSON.parse(JSON.stringify(value)); }
   function normalizeState(value) {
@@ -435,6 +448,7 @@
     next.items.forEach(item=>{
       if(item.type!=="player")return;
       item.position=String(item.position ?? "");
+      if(item.position==="SSDM")item.position="DMF";
       item.number=String(item.number ?? "");
       item.name=String(item.name ?? "");
     });
@@ -817,7 +831,7 @@
   }
   function resetInitial() {
     if(!confirm("初期配置へ戻しますか？現在の未保存変更は失われます。"))return;
-    state=createInitialState();selected=null;currentSaveId=null;snapshot();render();closeDialogs();toast("初期配置に戻しました");
+    state=createInitialState(state.court);selected=null;currentSaveId=null;snapshot();render();closeDialogs();toast("初期配置に戻しました");
   }
   function clearAll() {
     if(!confirm("盤面をすべて消去しますか？この操作はUndoできます。"))return;
@@ -880,10 +894,13 @@
     document.querySelectorAll("[data-delete-play]").forEach(b=>b.onclick=()=>deletePlay(b.dataset.deletePlay));
   }
   function openLibrary(){renderLibrary();closeDialogs();$("libraryDialog").showModal();}
-  function newPlay(){
-    if(!confirm("新しい盤面を作成しますか？未保存変更は失われます。"))return;
-    state=createInitialState();currentSaveId=null;$("playName").value="新しいプレー";
+  function openNewPlayDialog(){
+    closeDialogs();$("newPlayDialog").showModal();
+  }
+  function newPlay(court){
+    state=createInitialState(court);currentSaveId=null;$("playName").value="新しいプレー";
     history=[deepClone(state)];historyIndex=0;selected=null;render();closeDialogs();
+    snapshot(false);toast(court==="half"?"ハーフフィールドを作成しました":"フルフィールドを作成しました");
   }
   function exportPdf() {
     document.body.dataset.printTitle=$("playName").value||"名称未設定";
@@ -926,7 +943,9 @@
     $("clearAllBtn").onclick=$("mobileClearAllBtn").onclick=clearAll;
     $("saveBtn").onclick=()=>savePlay(false);$("saveAsBtn").onclick=saveAs;
     $("libraryBtn").onclick=$("libraryBtn2").onclick=$("mobileLibraryBtn").onclick=openLibrary;
-    $("closeLibraryBtn").onclick=()=>$("libraryDialog").close();$("newBtn").onclick=newPlay;
+    $("closeLibraryBtn").onclick=()=>$("libraryDialog").close();$("newBtn").onclick=openNewPlayDialog;
+    $("newFullBtn").onclick=()=>newPlay("full");$("newHalfBtn").onclick=()=>newPlay("half");
+    $("cancelNewPlayBtn").onclick=()=>$("newPlayDialog").close();
     $("pdfBtn").onclick=exportPdf;
     $("mobileAddBtn").onclick=()=>$("addDialog").showModal();$("closeAddBtn").onclick=()=>$("addDialog").close();
     $("mobileMoreBtn").onclick=()=>$("moreDialog").showModal();$("closeMoreBtn").onclick=()=>$("moreDialog").close();
